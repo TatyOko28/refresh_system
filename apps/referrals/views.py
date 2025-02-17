@@ -8,10 +8,13 @@ from django.core.cache import cache
 from .services import ReferralCodeService, ReferralRegistrationService
 from .serializers import ReferralCodeSerializer, ReferralSerializer, ReferralRegistrationSerializer
 from .models import ReferralCode, Referral
-from django.views.generic import CreateView
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError  
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
+from .exceptions import InvalidReferralCodeException, SelfReferralException  
 
-
+#
 class ReferralCodeCreateView(APIView):
     permission_classes = [IsAuthenticated]
 

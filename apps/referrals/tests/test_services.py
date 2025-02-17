@@ -1,4 +1,3 @@
-# File: apps/referrals/tests/test_services.py
 import pytest
 from datetime import datetime, timedelta
 import pytz
@@ -47,4 +46,3 @@ class TestReferralCodeService:
         
         verified_code = ReferralCodeService.verify_referral_code(referral_code.code)
         assert verified_code == referral_code
-

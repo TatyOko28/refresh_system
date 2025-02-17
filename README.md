@@ -16,6 +16,11 @@ docker-compose up --build
 
 ## Run Tests
 
+Run all tests
+```bash
+docker-compose -f docker-compose.test.yml up --build
+```
+
 Run all tests for the authentication app:
 ```bash
 docker-compose exec web pytest apps/authentication/tests/ -v
@@ -32,6 +37,7 @@ docker-compose up -d --build
 ```
 
 ---
+
 
 # Referral System API
 
@@ -140,23 +146,23 @@ Content-Type: application/json
 
 ### Running Tests
 ```bash
-docker-compose exec web pytest
+docker-compose exec web pytest  //bizard
 ```
 
 Run a specific test file:
 ```bash
-docker-compose exec web pytest apps/referrals/tests/test_views.py
+docker-compose exec web pytest apps/referrals/tests/test_views.py    //bizard
 ```
 
 Run tests with code coverage:
 ```bash
-docker-compose exec web pytest --cov=apps
+docker-compose exec web pytest --cov=apps    //bizard
 ```
 
 ### Code Style
 The project follows the PEP 8 style guide. Run linting:
 ```bash
-docker-compose exec web flake8
+docker-compose exec web flake8   //bizard
 ```
 
 ## Deployment
@@ -217,8 +223,6 @@ CACHES = {
 4. Push to the branch
 5. Create a Pull Request
 
-## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
 
 
