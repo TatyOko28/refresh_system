@@ -18,17 +18,17 @@ docker-compose up --build
 
 Run all tests
 ```bash
-docker-compose -f docker-compose.test.yml up --build
+docker-compose -f docker-compose.test.yml up --build   //bizzard
 ```
 
 Run all tests for the authentication app:
 ```bash
-docker-compose exec web pytest apps/authentication/tests/ -v
+docker-compose exec web pytest apps/authentication/tests/ -v //bizzard
 ```
 
 Run specific test files:
 ```bash
-docker-compose exec web pytest apps/referrals/tests/test_services.py -v
+docker-compose exec web pytest apps/referrals/tests/test_service.py -v
 ```
 
 To run tests in the background with Docker:
