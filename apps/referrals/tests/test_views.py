@@ -1,4 +1,3 @@
-# File: apps/referrals/tests/test_views.py
 import pytest
 from rest_framework.test import APIClient
 from rest_framework import status

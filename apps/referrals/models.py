@@ -1,4 +1,3 @@
-# File: apps/referrals/models.py
 from django.db import models
 import uuid
 from apps.authentication.models import User

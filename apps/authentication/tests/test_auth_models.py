@@ -1,4 +1,3 @@
-# File: apps/authentication/tests/test_models.py
 import pytest
 from django.core.exceptions import ValidationError
 from apps.authentication.models import User

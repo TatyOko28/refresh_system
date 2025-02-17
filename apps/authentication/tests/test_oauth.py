@@ -1,4 +1,3 @@
-# File: apps/authentication/tests/test_oauth.py
 import pytest
 from unittest.mock import patch
 from rest_framework.test import APIClient

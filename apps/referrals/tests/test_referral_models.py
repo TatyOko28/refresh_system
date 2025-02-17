@@ -1,4 +1,3 @@
-# File: apps/referrals/tests/test_models.py
 import pytest
 from django.utils import timezone
 from datetime import timedelta

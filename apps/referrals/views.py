@@ -8,13 +8,11 @@ from django.core.cache import cache
 from .services import ReferralCodeService, ReferralRegistrationService
 from .serializers import ReferralCodeSerializer, ReferralSerializer, ReferralRegistrationSerializer
 from .models import ReferralCode, Referral
-from django.core.exceptions import ValidationError  
+from django.core.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework import serializers
-from django.contrib.auth import get_user_model
-from .exceptions import InvalidReferralCodeException, SelfReferralException  
+from .exceptions import InvalidReferralCodeException, SelfReferralException
 
-#
+
 class ReferralCodeCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -110,8 +108,8 @@ class ReferralRegistrationView(APIView):
                     'tokens': {'refresh': str(refresh), 'access': str(refresh.access_token)},
                 }, status=status.HTTP_201_CREATED)
             except (InvalidReferralCodeException, SelfReferralException) as e:
-                return Response({'error': str(e)}, status=e.status_code)
-            except serializers.ValidationError as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            except ValidationError as e:
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

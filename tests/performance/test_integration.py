@@ -1,4 +1,3 @@
-# File: tests/integration/test_integration.py
 import pytest
 from rest_framework.test import APIClient
 from rest_framework import status
@@ -22,7 +21,7 @@ class TestCompleteReferralFlow:
         assert response.status_code == status.HTTP_201_CREATED
         referrer_token = response.json()['tokens']['access']
 
-        # 2. Create referral code
+        
         expires_at = datetime.now(pytz.UTC) + timedelta(days=7)
         code_data = {"expires_at": expires_at.isoformat()}
         response = client.post(
@@ -33,7 +32,6 @@ class TestCompleteReferralFlow:
         assert response.status_code == status.HTTP_201_CREATED
         referral_code = response.json()['code']
 
-        # 3. Register referred user
         referred_data = {
             "email": "referred@example.com",
             "password": "testpass123",
@@ -41,8 +39,7 @@ class TestCompleteReferralFlow:
         }
         response = client.post(reverse('referral-register'), referred_data)
         assert response.status_code == status.HTTP_201_CREATED
-
-        # 4. Verify referral relationship
+        
         response = client.get(
             reverse('referral-list'),
             HTTP_AUTHORIZATION=f'Bearer {referrer_token}'

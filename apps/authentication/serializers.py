@@ -1,4 +1,3 @@
-# File: apps/authentication/serializers.py
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 from .models import User

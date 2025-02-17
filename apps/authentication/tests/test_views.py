@@ -25,12 +25,11 @@ class TestAuthenticationViews:
         assert 'tokens' in response.data
         assert User.objects.filter(email='test@example.com').exists()
     
-    def test_user_login(self, api_client):
-        # Crée un utilisateur avec email vérifié
+    def test_user_login(self, api_client):        
         user = User.objects.create_user(
             email='test@example.com',
             password='testpass123',
-            email_verified=True  # Assure-toi que ce champ existe dans ton modèle
+            email_verified=True  le
         )
         
         url = reverse('user-login')
@@ -40,7 +39,7 @@ class TestAuthenticationViews:
         }
         response = api_client.post(url, data)
 
-        # Affiche la réponse pour debug
+       
         print(response.data)
 
         assert response.status_code == status.HTTP_200_OK

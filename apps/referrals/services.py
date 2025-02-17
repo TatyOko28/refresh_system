@@ -1,55 +1,68 @@
-# File: apps/referrals/services.py
 from datetime import datetime
 import pytz
 import random
 import string
 from django.core.cache import cache
+from django.conf import settings
 from .models import ReferralCode, Referral
-from apps.authentication.models import User
-from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .exceptions import InvalidReferralCodeException, SelfReferralException
 
+User = get_user_model()
+
 class ReferralCodeService:
-    @staticmethod
-    def generate_unique_code(length=8):
-        """Generate a unique referral code"""
-        while True:
-            code = ''.join(random.choices(
-                string.ascii_uppercase + string.digits, k=length))
-            if not ReferralCode.objects.filter(code=code).exists():
-                return code
+    CACHE_TIMEOUT = 86400  
+    CODE_LENGTH = 8
 
     @staticmethod
-    def create_referral_code(user, expires_at):
-        """Create a new referral code for user"""
-        # Deactivate any existing active codes
-        ReferralCode.objects.filter(user=user, is_active=True).update(
-            is_active=False)
+    def generate_unique_code(length=CODE_LENGTH):
         
-        # Create new code
-        code = ReferralCodeService.generate_unique_code()
-        referral_code = ReferralCode.objects.create(
-            user=user,
-            code=code,
-            expires_at=expires_at
-        )
+        attempts = 0
+        max_attempts = 10
         
-        # Cache the new code
-        cache_key = f'referral_code_{user.email}'
-        cache.set(cache_key, code, timeout=86400)  # 24 hours
+        while attempts < max_attempts:
+            code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
+            if not ReferralCode.objects.filter(code=code).exists():
+                return code
+            attempts += 1
+            
+        raise Exception("Failed to generate unique code after maximum attempts")
+
+    @staticmethod
+    def create_referral_code(user, expires_at):       
         
-        return referral_code
+        from django.db import transaction
+        
+        with transaction.atomic():           
+            ReferralCode.objects.filter(user=user, is_active=True).update(is_active=False)
+            
+            # Create new code
+            code = ReferralCodeService.generate_unique_code()
+            referral_code = ReferralCode.objects.create(
+                user=user,
+                code=code,
+                expires_at=expires_at
+            )
+            
+            # Cache the new code
+            cache_key = f'referral_code_{user.email}'
+            cache.set(cache_key, code, timeout=ReferralCodeService.CACHE_TIMEOUT)
+            
+            return referral_code
 
     @staticmethod
     def get_referral_code_by_email(email):
-        """Get active referral code by user email"""
-        # Try to get from cache first
-        cache_key = f'referral_code_{email}'
-        cached_code = cache.get(cache_key)
         
+        cache_key = f'referral_code_{email}'
+        
+        # Try cache first
+        cached_code = cache.get(cache_key)
         if cached_code:
-            return cached_code
+            # Verify the cached code is still valid
+            if ReferralCodeService.verify_referral_code(cached_code):
+                return cached_code
+            else:
+                cache.delete(cache_key)
         
         try:
             user = User.objects.get(email=email)
@@ -60,8 +73,8 @@ class ReferralCodeService:
             ).first()
             
             if referral_code:
-                # Update cache
-                cache.set(cache_key, referral_code.code, timeout=86400)
+                cache.set(cache_key, referral_code.code, 
+                         timeout=ReferralCodeService.CACHE_TIMEOUT)
                 return referral_code.code
             
         except User.DoesNotExist:
@@ -71,61 +84,76 @@ class ReferralCodeService:
 
     @staticmethod
     def verify_referral_code(code):
-        """Verify if a referral code is valid"""
+        
         try:
-            referral_code = ReferralCode.objects.get(
+            return ReferralCode.objects.get(
                 code=code,
                 is_active=True,
                 expires_at__gt=datetime.now(pytz.UTC)
             )
-            return referral_code
         except ReferralCode.DoesNotExist:
             return None
+
 
 class ReferralRegistrationService:
     @staticmethod
     def register_with_referral(referral_code, email, password, **extra_data):
-        """Register a new user with a referral code"""
-        # Verify the referral code
+       
+        from django.db import transaction
+        
+        # First verify the referral code
         referral_code_obj = ReferralCodeService.verify_referral_code(referral_code)
         if not referral_code_obj:
-            raise InvalidReferralCodeException()
+            raise InvalidReferralCodeException("Invalid or expired referral code")
 
-        # Check if user already exists
-        if User.objects.filter(email=email).exists():
-            raise serializers.ValidationError("User with this email already exists")
+        # Check for existing user and self-referral
+        try:
+            existing_user = User.objects.get(email=email)
+            if existing_user:
+                if referral_code_obj.user.email == email:
+                    raise SelfReferralException("You cannot use your own referral code")
+                else:
+                    raise SelfReferralException("User with this email already exists")
+        except User.DoesNotExist:
+            pass
 
-        # Prevent self-referral
-        if referral_code_obj.user.email == email:
-            raise SelfReferralException()
+        # Create user and referral record in a transaction
+        with transaction.atomic():
+            user = User.objects.create_user(
+                email=email,
+                password=password,
+                **extra_data
+            )
 
-        # Create the new user
-        referred_user = User.objects.create_user(
-            email=email,
-            password=password,
-            **extra_data
-        )
+            Referral.objects.create(
+                referrer=referral_code_obj.user,
+                referred=user,
+                referral_code=referral_code_obj
+            )
 
-        # Create the referral relationship
-        Referral.objects.create(
-            referrer=referral_code_obj.user,
-            referred=referred_user,
-            referral_code=referral_code_obj
-        )
-
-        return referred_user
+            return user
 
     @staticmethod
     def get_referral_stats(user):
-        """Get referral statistics for a user"""
+        
+        cache_key = f'referral_stats_{user.id}'
+        cached_stats = cache.get(cache_key)
+        
+        if cached_stats:
+            return cached_stats
+            
         referrals = Referral.objects.filter(referrer=user)
-        return {
+        stats = {
             'total_referrals': referrals.count(),
-            'recent_referrals': referrals.order_by('-created_at')[:5],
+            'recent_referrals': list(referrals.order_by('-created_at')[:5]),
             'active_code': ReferralCode.objects.filter(
                 user=user,
                 is_active=True,
                 expires_at__gt=datetime.now(pytz.UTC)
             ).first()
         }
-
+        
+        # Cache for 1 hour since this data changes more frequently
+        cache.set(cache_key, stats, timeout=3600)
+        
+        return stats

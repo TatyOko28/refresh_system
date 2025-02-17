@@ -1,4 +1,3 @@
-# File: apps/referrals/tests/test_registration.py
 import pytest
 from rest_framework.test import APIClient
 from rest_framework import status
@@ -73,8 +72,7 @@ class TestReferralRegistration:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert 'error' in response.data
 
-    def test_referral_stats(self, api_client, referrer, active_referral_code):
-        # Create some referrals
+    def test_referral_stats(self, api_client, referrer, active_referral_code):       
         for i in range(3):
             referred = User.objects.create_user(
                 email=f'referred{i}@example.com',

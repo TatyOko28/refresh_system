@@ -1,4 +1,3 @@
-# File: apps/integrations/emailhunter_service.py
 import aiohttp
 from django.conf import settings
 import logging

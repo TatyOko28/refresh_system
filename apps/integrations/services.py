@@ -1,5 +1,3 @@
-# apps/integrations/services.py
-
 class EmailHunterService:
     @staticmethod
     async def verify_email(email):

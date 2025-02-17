@@ -1,4 +1,3 @@
-# conftest.py
 import pytest
 from django.db import connections
 from django.test.utils import setup_databases, teardown_databases
@@ -30,13 +29,13 @@ def django_db_setup(
             **setup_databases_args,
         )
 
-    # Enable thread sharing for all database connections
+    
     for conn in connections.all():
         conn.inc_thread_sharing()
 
-    yield  # Allow tests to run
+    yield  
 
-    # Teardown databases and disable thread sharing
+   
     with django_db_blocker.unblock():
         teardown_databases(db_cfg, verbosity=request.config.option.verbose)
 

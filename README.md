@@ -72,7 +72,6 @@ cd referral-system
 2. Create a `.env` file:
 ```bash
 cp .env.example .env
-# Edit .env with your configuration
 ```
 
 3. Build and start services:
@@ -151,19 +150,12 @@ docker-compose exec web pytest  //bizard
 
 Run a specific test file:
 ```bash
-docker-compose exec web pytest apps/referrals/tests/test_views.py    //bizard
+docker-compose exec web pytest apps/referrals/tests/test_views.py    
 ```
 
-Run tests with code coverage:
-```bash
-docker-compose exec web pytest --cov=apps    //bizard
-```
 
-### Code Style
-The project follows the PEP 8 style guide. Run linting:
-```bash
-docker-compose exec web flake8   //bizard
-```
+
+
 
 ## Deployment
 

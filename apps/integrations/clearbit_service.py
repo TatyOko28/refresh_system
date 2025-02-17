@@ -1,4 +1,3 @@
-# File: apps/integrations/clearbit_service.py
 import aiohttp
 from django.conf import settings
 import json

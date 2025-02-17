@@ -29,6 +29,6 @@ class EnrichmentMiddleware:
                 clearbit_data = async_to_sync(ClearbitService.enrich_user_data)(request.user.email)
                 if clearbit_data:
                     request.user.clearbit_data = clearbit_data
-                    request.user.save()  # Remove async_to_sync since save() is synchronous
+                    request.user.save()  
                     cache.set(cache_key, json.dumps(clearbit_data), timeout=86400)
         return None

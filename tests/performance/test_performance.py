@@ -1,4 +1,3 @@
-# File: tests/performance/test_performance.py
 import pytest
 from locust import HttpUser, task, between
 from django.urls import reverse
