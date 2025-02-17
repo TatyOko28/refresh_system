@@ -51,4 +51,3 @@ class ReferralRegistrationSerializer(serializers.Serializer):
     password = serializers.CharField(required=True, write_only=True)
     first_name = serializers.CharField(required=False)
     last_name = serializers.CharField(required=False)
-

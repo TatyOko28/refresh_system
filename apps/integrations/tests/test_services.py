@@ -41,3 +41,4 @@ class TestIntegrationServices:
             assert result['is_valid'] == True
             assert result['score'] == 90
 
+

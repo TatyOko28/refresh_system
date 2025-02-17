@@ -1,162 +1,125 @@
-# apps/referrals/views.py
-
-import json
-from django.http import JsonResponse
-from django.views import View
 from rest_framework import status
-from asgiref.sync import sync_to_async
-
-# IMPORTS NÉCESSAIRES
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 from django.core.cache import cache
-from apps.referrals.models import ReferralCode, Referral
-from apps.referrals.serializers import (
-    ReferralCodeSerializer,
-    ReferralRegistrationSerializer,
-    ReferralSerializer
-)
-from apps.referrals.services import ReferralCodeService, ReferralRegistrationService
-from apps.integrations.services import EmailHunterService  # Ajustez le chemin selon votre projet
-from rest_framework_simplejwt.tokens import RefreshToken
+from .services import ReferralCodeService, ReferralRegistrationService
+from .serializers import ReferralCodeSerializer, ReferralSerializer, ReferralRegistrationSerializer
+from .models import ReferralCode, Referral
+from django.views.generic import CreateView
+from django.core.exceptions import ValidationError
 
 
-class ReferralCodeCreateView(View):
-    async def post(self, request):
+class ReferralCodeCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        request_body=ReferralCodeSerializer,
+        responses={201: ReferralCodeSerializer, 400: "Bad Request"}
+    )
+    def post(self, request):
+        serializer = ReferralCodeSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            referral_code = ReferralCodeService.create_referral_code(
+                user=request.user, expires_at=serializer.validated_data['expires_at']
+            )
+            return Response(ReferralCodeSerializer(referral_code).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ReferralCodeDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, code):
         try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError:
-            return JsonResponse(
-                {"error": "Invalid JSON"}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Utilisation d'une fonction asynchrone pour instancier le serializer
-        serializer = await sync_to_async(ReferralCodeSerializer)(
-            data=data, 
-            context={'request': request}
-        )
-        is_valid = await sync_to_async(serializer.is_valid)()
-        if is_valid:
-            expires_at = serializer.validated_data['expires_at']
-            referral_code = await ReferralCodeService.create_referral_code(
-                user=request.user, 
-                expires_at=expires_at
-            )
-            # On récupère les données sérialisées via une lambda pour éviter des problèmes de synchronisation
-            serialized_data = await sync_to_async(lambda: ReferralCodeSerializer(referral_code).data)()
-            return JsonResponse(serialized_data, status=status.HTTP_201_CREATED)
-        
-        errors = await sync_to_async(lambda: serializer.errors)()
-        return JsonResponse(errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class ReferralCodeView(View):
-    async def delete(self, request, code):
-        try:
-            referral_code = await ReferralCode.objects.aget(
-                code=code, 
-                user=request.user
-            )
+            referral_code = ReferralCode.objects.get(code=code, user=request.user)
             referral_code.is_active = False
-            await referral_code.asave()
-            await cache.adelete(f'referral_code_{request.user.email}')
-            return JsonResponse({}, status=status.HTTP_204_NO_CONTENT)
+            referral_code.save()
+            cache_key = f'referral_code_{request.user.email}'
+            cache.delete(cache_key)
+            return Response(status=status.HTTP_204_NO_CONTENT)
         except ReferralCode.DoesNotExist:
-            return JsonResponse(
-                {"error": "Referral code not found"}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-    async def get(self, request, email=None):
-        if email:
-            code = await ReferralCodeService.get_referral_code_by_email(email)
-            if code:
-                return JsonResponse({"code": code})
-            return JsonResponse(
-                {"error": "No active referral code found"}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        referrals = await sync_to_async(list)(Referral.objects.filter(referrer=request.user))
-        serialized_data = await sync_to_async(lambda: ReferralSerializer(referrals, many=True).data)()
-        return JsonResponse(serialized_data, safe=False)
+            return Response({"error": "Referral code not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
-class ReferralRegistrationView(View):
-    async def post(self, request):
-        try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError:
-            return JsonResponse(
-                {"error": "Invalid JSON"}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+class ReferralCodeByEmailView(APIView):
+    permission_classes = [IsAuthenticated]
 
-        serializer = await sync_to_async(ReferralRegistrationSerializer)(data=data)
-        is_valid = await sync_to_async(serializer.is_valid)()
-        if is_valid:
+    def get(self, request, email):
+        code = ReferralCodeService.get_referral_code_by_email(email)
+        if code:
+            return Response({"code": code})
+        return Response({"error": "No active referral code found"}, status=status.HTTP_404_NOT_FOUND)
+
+
+class ReferralListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        referrals = Referral.objects.filter(referrer=request.user)
+        serializer = ReferralSerializer(referrals, many=True)
+        return Response(serializer.data)
+
+
+class ReferralRegistrationView(APIView):
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        request_body=ReferralRegistrationSerializer,
+        responses={
+            201: openapi.Response(
+                description="Successfully registered with referral",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'user_id': openapi.Schema(type=openapi.TYPE_STRING),
+                        'email': openapi.Schema(type=openapi.TYPE_STRING),
+                        'tokens': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'refresh': openapi.Schema(type=openapi.TYPE_STRING),
+                                'access': openapi.Schema(type=openapi.TYPE_STRING),
+                            }
+                        ),
+                    }
+                )
+            ),
+            400: "Bad Request"
+        }
+    )
+    def post(self, request):
+        serializer = ReferralRegistrationSerializer(data=request.data)
+        if serializer.is_valid():
             try:
-                referral_code = await ReferralCodeService.verify_referral_code(
-                    serializer.validated_data['referral_code']
-                )
-                if not referral_code:
-                    return JsonResponse(
-                        {'error': 'Invalid or expired referral code'}, 
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-
-                email_verification = await EmailHunterService.verify_email(
-                    serializer.validated_data['email']
-                )
-                if not email_verification.get('is_valid'):
-                    return JsonResponse(
-                        {'error': 'Invalid email address'}, 
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-
-                if referral_code.user.email == serializer.validated_data['email']:
-                    return JsonResponse(
-                        {'error': 'Cannot use your own referral code'}, 
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-
-                referred_user = await ReferralRegistrationService.create_user(
+                user = ReferralRegistrationService.register_with_referral(
+                    referral_code=serializer.validated_data['referral_code'],
                     email=serializer.validated_data['email'],
                     password=serializer.validated_data['password'],
                     first_name=serializer.validated_data.get('first_name', ''),
                     last_name=serializer.validated_data.get('last_name', '')
                 )
-
-                await Referral.objects.acreate(
-                    referrer=referral_code.user, 
-                    referred=referred_user, 
-                    referral_code=referral_code
-                )
-
-                refresh = await sync_to_async(RefreshToken.for_user)(referred_user)
-                return JsonResponse({
-                    'user_id': str(referred_user.id),
-                    'email': referred_user.email,
-                    'tokens': {
-                        'refresh': str(refresh),
-                        'access': str(refresh.access_token)
-                    }
+                refresh = RefreshToken.for_user(user)
+                return Response({
+                    'user_id': str(user.id),
+                    'email': user.email,
+                    'tokens': {'refresh': str(refresh), 'access': str(refresh.access_token)},
                 }, status=status.HTTP_201_CREATED)
-            except Exception as e:
-                return JsonResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
-        errors = await sync_to_async(lambda: serializer.errors)()
-        return JsonResponse(errors, status=status.HTTP_400_BAD_REQUEST)
+            except (InvalidReferralCodeException, SelfReferralException) as e:
+                return Response({'error': str(e)}, status=e.status_code)
+            except serializers.ValidationError as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ReferralStatsView(View):
-    async def get(self, request):
-        stats = await ReferralRegistrationService.get_referral_stats(request.user)
-        recent_referrals = await sync_to_async(lambda: ReferralSerializer(stats['recent_referrals'], many=True).data)()
-        active_code = None
-        if stats['active_code']:
-            active_code = await sync_to_async(lambda: ReferralCodeSerializer(stats['active_code']).data)()
-        return JsonResponse({
+class ReferralStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        stats = ReferralRegistrationService.get_referral_stats(request.user)
+        return Response({
             'total_referrals': stats['total_referrals'],
-            'recent_referrals': recent_referrals,
-            'active_code': active_code
+            'recent_referrals': ReferralSerializer(stats['recent_referrals'], many=True).data,
+            'active_code': ReferralCodeSerializer(stats['active_code']).data if stats['active_code'] else None
         })

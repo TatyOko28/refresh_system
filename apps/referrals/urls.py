@@ -1,11 +1,12 @@
 # File: apps/referrals/urls.py
 from django.urls import path
-from .views import ReferralRegistrationView
 from .views import (
     ReferralCodeCreateView,
     ReferralCodeDeleteView,
     ReferralCodeByEmailView,
-    ReferralListView
+    ReferralRegistrationView,
+    ReferralListView,
+     ReferralStatsView
 )
 
 urlpatterns = [
@@ -17,7 +18,6 @@ urlpatterns = [
          name='referral-code-by-email'),
     path('list/', ReferralListView.as_view(), name='referral-list'),
     path('register/', ReferralRegistrationView.as_view(), name='referral-register'),
-    path('stats/', ReferralListView.as_view(), name='referral-stats'),
-
+    path('stats/', ReferralStatsView.as_view(), name='referral-stats'),
 ]
 
